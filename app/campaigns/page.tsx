@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 const statusColors: Record<string,string> = { Sent:"bg-emerald-100 text-emerald-700", Draft:"bg-slate-100 text-slate-600", Scheduled:"bg-blue-100 text-blue-700" };
 const typeColors: Record<string,string> = { Email:"bg-purple-100 text-purple-700", SMS:"bg-amber-100 text-amber-700", WhatsApp:"bg-green-100 text-green-700" };
 
@@ -111,3 +111,4 @@ export default function CampaignsPage() {
     </main>
   );
 }
+

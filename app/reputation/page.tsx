@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function ReputationPage() {
   const [reviews, setReviews] = useState<any[]>([]);
@@ -144,3 +144,4 @@ export default function ReputationPage() {
     </main>
   );
 }
+

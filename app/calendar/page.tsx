@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 const typeColors: Record<string,string> = { Consultation:"bg-blue-100 text-blue-700", "Site Visit":"bg-amber-100 text-amber-700", Proposal:"bg-purple-100 text-purple-700", "Follow Up":"bg-emerald-100 text-emerald-700" };
 
 export default function CalendarPage() {
@@ -98,3 +98,4 @@ export default function CalendarPage() {
     </main>
   );
 }
+

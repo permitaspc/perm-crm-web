@@ -1,31 +1,40 @@
-﻿'use client';
-import Link from 'next/link';
+﻿"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 
-const monthly = [
-  { month:'Jan', leads:18, deals:8, revenue:12400 },
-  { month:'Feb', leads:22, deals:11, revenue:15800 },
-  { month:'Mar', leads:19, deals:9, revenue:13200 },
-  { month:'Apr', leads:31, deals:14, revenue:21000 },
-  { month:'May', leads:28, deals:12, revenue:18600 },
-  { month:'Jun', leads:34, deals:16, revenue:24200 },
-];
-
-const team = [
-  { name:'You', calls:34, emails:89, tasks:23, deals:12 },
-  { name:'Sarah', calls:28, emails:67, tasks:18, deals:9 },
-  { name:'James', calls:19, emails:45, tasks:14, deals:6 },
-];
-
-const sources = [
-  { source:'Web', leads:45, pct:36 },
-  { source:'Referral', leads:38, pct:31 },
-  { source:'Email', leads:24, pct:19 },
-  { source:'Phone', leads:17, pct:14 },
-];
+const API = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function ReportsPage() {
-  const maxRevenue = Math.max(...monthly.map(m=>m.revenue));
-  const maxLeads = Math.max(...monthly.map(m=>m.leads));
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    Promise.all([
+      fetch(API+"/contacts").then(r=>r.json()),
+      fetch(API+"/deals").then(r=>r.json()),
+      fetch(API+"/tasks").then(r=>r.json()),
+      fetch(API+"/campaigns").then(r=>r.json()),
+    ]).then(([c,d,t,camp])=>{
+      setContacts(c); setDeals(d); setTasks(t); setCampaigns(camp);
+    }).finally(()=>setLoading(false));
+  },[]);
+
+  const totalRevenue = deals.filter(d=>d.stage==="Won").reduce((a:number,b:any)=>a+(Number(b.value)||0),0);
+  const activeDeals = deals.filter(d=>!["Won","Lost"].includes(d.stage));
+  const convRate = deals.length>0 ? ((deals.filter(d=>d.stage==="Won").length/deals.length)*100).toFixed(0) : 0;
+  const avgDeal = deals.filter(d=>d.stage==="Won").length>0 ? (totalRevenue/deals.filter(d=>d.stage==="Won").length).toFixed(0) : 0;
+
+  const stages = ["New","Qualified","Consultation","Proposal","Won","Lost"];
+  const sources = [...new Set(contacts.map((c:any)=>c.source))].map(s=>({
+    source: s,
+    leads: contacts.filter((c:any)=>c.source===s).length,
+    pct: Math.round((contacts.filter((c:any)=>c.source===s).length/contacts.length)*100)||0
+  }));
+
+  const maxDeals = Math.max(...stages.map(s=>deals.filter(d=>d.stage===s).length),1);
 
   return (
     <main className="min-h-screen flex bg-slate-100">
@@ -51,91 +60,109 @@ export default function ReportsPage() {
           <h1 className="text-xl font-bold text-slate-800">Reports</h1>
         </header>
         <div className="p-6">
+          {loading ? <p className="text-slate-400 text-sm">Loading...</p> : (
+          <>
           <div className="grid grid-cols-4 gap-4 mb-6">
             {[
-              { label:'Total Leads', value:'152', change:'+14%' },
-              { label:'Conversion Rate', value:'31%', change:'+3%' },
-              { label:'Total Revenue', value:'GBP 105,200', change:'+18%' },
-              { label:'Avg Deal Value', value:'GBP 6,575', change:'+7%' },
-            ].map(k => (
+              { label:"Total Contacts", value:contacts.length },
+              { label:"Conversion Rate", value:convRate+"%" },
+              { label:"Total Revenue", value:"GBP "+totalRevenue.toLocaleString() },
+              { label:"Avg Deal Value", value:"GBP "+Number(avgDeal).toLocaleString() },
+            ].map(k=>(
               <div key={k.label} className="bg-white rounded-xl border border-slate-200 p-4">
                 <p className="text-xs text-slate-400 uppercase font-semibold mb-1">{k.label}</p>
                 <p className="text-2xl font-bold text-slate-800">{k.value}</p>
-                <p className="text-xs text-emerald-600 mt-1">{k.change} vs last period</p>
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h2 className="font-bold text-slate-700 mb-4">Monthly Revenue (GBP)</h2>
-              <div className="flex items-end gap-2 h-40">
-                {monthly.map(m => (
-                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs text-slate-400">{(m.revenue/1000).toFixed(0)}k</span>
-                    <div className="w-full bg-emerald-500 rounded-t-md" style={{height: (m.revenue/maxRevenue*120)+'px'}} />
-                    <span className="text-xs text-slate-500">{m.month}</span>
-                  </div>
-                ))}
+              <h2 className="font-bold text-slate-700 mb-4">Deals by Stage</h2>
+              {deals.length===0 ? <p className="text-slate-400 text-sm">No deals yet.</p> : (
+              <div className="space-y-3">
+                {stages.map(stage=>{
+                  const count = deals.filter(d=>d.stage===stage).length;
+                  const val = deals.filter(d=>d.stage===stage).reduce((a:number,b:any)=>a+(Number(b.value)||0),0);
+                  return (
+                    <div key={stage}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-slate-700">{stage}</span>
+                        <span className="text-slate-400">{count} deals - GBP {val.toLocaleString()}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2">
+                        <div className="bg-emerald-500 h-2 rounded-full" style={{width:(count/maxDeals*100)+"%"}} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+              )}
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h2 className="font-bold text-slate-700 mb-4">Monthly Leads</h2>
-              <div className="flex items-end gap-2 h-40">
-                {monthly.map(m => (
-                  <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs text-slate-400">{m.leads}</span>
-                    <div className="w-full bg-blue-400 rounded-t-md" style={{height: (m.leads/maxLeads*120)+'px'}} />
-                    <span className="text-xs text-slate-500">{m.month}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <h2 className="font-bold text-slate-700 mb-4">Lead Sources</h2>
+              {contacts.length===0 ? <p className="text-slate-400 text-sm">No contacts yet.</p> : (
               <div className="space-y-3">
-                {sources.map(s => (
+                {sources.map((s:any)=>(
                   <div key={s.source}>
                     <div className="flex justify-between text-sm mb-1">
                       <span className="font-medium text-slate-700">{s.source}</span>
                       <span className="text-slate-400">{s.leads} leads ({s.pct}%)</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{width:s.pct+'%'}} />
+                      <div className="bg-blue-400 h-2 rounded-full" style={{width:s.pct+"%"}} />
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <h2 className="font-bold text-slate-700 mb-4">Team Activity</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-400 text-xs uppercase border-b">
-                    <th className="pb-2">Name</th>
-                    <th className="pb-2">Calls</th>
-                    <th className="pb-2">Emails</th>
-                    <th className="pb-2">Tasks</th>
-                    <th className="pb-2">Deals</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {team.map(t => (
-                    <tr key={t.name} className="border-b last:border-0">
-                      <td className="py-2 font-medium">{t.name}</td>
-                      <td className="py-2 text-slate-500">{t.calls}</td>
-                      <td className="py-2 text-slate-500">{t.emails}</td>
-                      <td className="py-2 text-slate-500">{t.tasks}</td>
-                      <td className="py-2 text-slate-500">{t.deals}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              )}
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <h2 className="font-bold text-slate-700 mb-4">Task Summary</h2>
+              {tasks.length===0 ? <p className="text-slate-400 text-sm">No tasks yet.</p> : (
+              <div className="space-y-3">
+                {[
+                  { label:"Total Tasks", value:tasks.length, color:"bg-blue-400" },
+                  { label:"Pending", value:tasks.filter(t=>t.status==="Pending").length, color:"bg-amber-400" },
+                  { label:"Completed", value:tasks.filter(t=>t.status==="Done").length, color:"bg-emerald-500" },
+                  { label:"High Priority", value:tasks.filter(t=>t.priority==="High").length, color:"bg-red-400" },
+                ].map(s=>(
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className={"w-3 h-3 rounded-full "+s.color} />
+                    <span className="text-sm flex-1 text-slate-700">{s.label}</span>
+                    <span className="text-sm font-bold text-slate-800">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <h2 className="font-bold text-slate-700 mb-4">Campaign Summary</h2>
+              {campaigns.length===0 ? <p className="text-slate-400 text-sm">No campaigns yet.</p> : (
+              <div className="space-y-3">
+                {[
+                  { label:"Total Campaigns", value:campaigns.length, color:"bg-purple-400" },
+                  { label:"Sent", value:campaigns.filter(c=>c.status==="Sent").length, color:"bg-emerald-500" },
+                  { label:"Scheduled", value:campaigns.filter(c=>c.status==="Scheduled").length, color:"bg-blue-400" },
+                  { label:"Drafts", value:campaigns.filter(c=>c.status==="Draft").length, color:"bg-slate-400" },
+                ].map(s=>(
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className={"w-3 h-3 rounded-full "+s.color} />
+                    <span className="text-sm flex-1 text-slate-700">{s.label}</span>
+                    <span className="text-sm font-bold text-slate-800">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+              )}
+            </div>
+          </div>
+          </>
+          )}
         </div>
       </section>
     </main>
